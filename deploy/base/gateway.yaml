@@ -26,6 +26,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
     spec:
+      automountServiceAccountToken: false # the service never calls the Kubernetes API
       securityContext:
         runAsNonRoot: true
       containers:
@@ -38,11 +39,11 @@ spec:
             - name: PORT
               value: "8080"
             - name: USER_SERVICE_URL
-              value: http://user-service:80
+              value: "http://user-service"
             - name: PRODUCT_SERVICE_URL
-              value: http://product-service:80
+              value: "http://product-service"
             - name: ORDER_SERVICE_URL
-              value: http://order-service:80
+              value: "http://order-service"
           readinessProbe:
             httpGet: { path: /health, port: 8080 }
             periodSeconds: 5

@@ -26,6 +26,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8083"
     spec:
+      automountServiceAccountToken: false # the service never calls the Kubernetes API
       securityContext:
         runAsNonRoot: true
       containers:
@@ -37,23 +38,25 @@ spec:
           env:
             - name: PORT
               value: "8083"
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD }
-            - name: DATABASE_URL
-              value: postgres://app:$(DB_PASSWORD)@postgres:5432/orders_db?sslmode=disable
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_NAME
+              value: "orders_db"
+            - name: DB_USER
+              value: "order_service"
+            - name: DB_PASSWORD_FILE
+              value: "/run/secrets/db/password"
+            - name: MQ_HOST
+              value: "rabbitmq"
             - name: MQ_USER
               valueFrom:
-                secretKeyRef: { name: rabbitmq-credentials, key: RABBITMQ_DEFAULT_USER }
-            - name: MQ_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: rabbitmq-credentials, key: RABBITMQ_DEFAULT_PASS }
-            - name: RABBITMQ_URL
-              value: amqp://$(MQ_USER):$(MQ_PASSWORD)@rabbitmq:5672/
+                secretKeyRef: { name: rabbitmq, key: username }
+            - name: MQ_PASSWORD_FILE
+              value: "/run/secrets/rabbitmq/password"
             - name: USER_SERVICE_URL
-              value: http://user-service:80
+              value: "http://user-service"
             - name: PRODUCT_SERVICE_URL
-              value: http://product-service:80
+              value: "http://product-service"
           readinessProbe:
             httpGet: { path: /health, port: 8083 }
             periodSeconds: 5
@@ -69,3 +72,19 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+          volumeMounts:
+            - name: db-credentials
+              mountPath: /run/secrets/db
+              readOnly: true
+            - name: rabbitmq-credentials
+              mountPath: /run/secrets/rabbitmq
+              readOnly: true
+      volumes:
+        - name: db-credentials
+          secret:
+            secretName: order-service-db
+            items: [{ key: password, path: password }]
+        - name: rabbitmq-credentials
+          secret:
+            secretName: rabbitmq
+            items: [{ key: password, path: password }]

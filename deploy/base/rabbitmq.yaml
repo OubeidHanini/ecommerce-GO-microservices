@@ -27,15 +27,22 @@ spec:
         app: rabbitmq
     spec:
       hostname: rabbitmq # RabbitMQ stores its data under the node name: keep it stable across restarts
+      automountServiceAccountToken: false
       containers:
         - name: rabbitmq
           image: rabbitmq:4-management-alpine
           ports:
             - containerPort: 5672
             - containerPort: 15672
-          envFrom:
-            - secretRef:
-                name: rabbitmq-credentials
+          # The RabbitMQ image has no *_FILE variant: the password is injected as an
+          # environment variable, still sourced from the Secret, never written here.
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef: { name: rabbitmq, key: username }
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef: { name: rabbitmq, key: password }
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]

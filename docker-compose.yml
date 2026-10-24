@@ -41,7 +41,7 @@ services:
       - product_service_db_password
       - order_service_db_password
     volumes:
-      - ./deploy/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+      - ./deploy/config/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -155,7 +155,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./deploy/prometheus/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/config/prometheus/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
 
   grafana:
     image: grafana/grafana:12.2.1
@@ -169,8 +169,8 @@ services:
     secrets:
       - grafana_admin_password
     volumes:
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deploy/config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/config/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
 

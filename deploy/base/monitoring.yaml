@@ -99,10 +99,9 @@ spec:
           image: grafana/grafana:12.2.1
           ports:
             - containerPort: 3000
-          envFrom:
-            - secretRef:
-                name: grafana-admin
           env:
+            - name: GF_SECURITY_ADMIN_PASSWORD__FILE
+              value: /run/secrets/grafana/password
             - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
               value: /var/lib/grafana/dashboards/ecommerce.json
           readinessProbe:
@@ -117,6 +116,9 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
+            - name: admin-password
+              mountPath: /run/secrets/grafana
+              readOnly: true
       volumes:
         - name: datasources
           configMap:
@@ -127,3 +129,6 @@ spec:
         - name: dashboards
           configMap:
             name: grafana-dashboards
+        - name: admin-password
+          secret:
+            secretName: grafana-admin

@@ -1,0 +1,22 @@
+# Production. Prerequisites on the cluster:
+#   - the External Secrets Operator (https://external-secrets.io)
+#   - a ClusterSecretStore named "production-secrets" pointing at the secret manager
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ecommerce
+
+resources:
+  - ../../base
+  - external-secrets.yaml
+
+# The CD pipeline pins each image to the commit SHA with `kustomize edit set image`:
+# "latest" would make rollbacks and audits impossible.
+images:
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/user-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/product-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/order-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/gateway
+    newTag: latest

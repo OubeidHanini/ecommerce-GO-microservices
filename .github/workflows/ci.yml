@@ -13,6 +13,16 @@ env:
   REGISTRY: ghcr.io/oubeidhanini/ecommerce-go-microservices # GHCR requires lowercase names
 
 jobs:
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # scan the whole history, not only the last commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     name: test (${{ matrix.module }})
     runs-on: ubuntu-latest
@@ -42,14 +52,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Generate throwaway dev secrets
+        run: scripts/init-secrets.sh
       - name: Render Kubernetes manifests
-        run: kubectl kustomize deploy > /dev/null
+        run: |
+          kubectl kustomize deploy/overlays/dev > /dev/null
+          kubectl kustomize deploy/overlays/production > /dev/null
 
   e2e:
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Generate throwaway secrets
+        run: scripts/init-secrets.sh
       - name: Start the stack
         run: docker compose up -d --build gateway
       - name: Smoke test
@@ -63,7 +79,7 @@ jobs:
 
   images:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, manifests, e2e]
+    needs: [secrets-scan, test, manifests, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -113,7 +129,7 @@ jobs:
         if: steps.cluster.outputs.configured == 'true'
         run: |
           mkdir -p ~/.kube && echo "$KUBECONFIG_DATA" > ~/.kube/config
-          cd deploy
+          cd deploy/overlays/production
           # Pin every image to this commit: "latest" would make rollbacks impossible.
           for svc in user-service product-service order-service gateway; do
             kustomize edit set image "$REGISTRY/$svc=$REGISTRY/$svc:${{ github.sha }}"

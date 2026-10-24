@@ -1,0 +1,17 @@
+# Configuration shared by Docker Compose (bind mounts) and Kubernetes (these ConfigMaps).
+# It contains no secret: passwords are provided by the overlays.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Generated names carry a content hash: changing a file rolls out the pods that use it.
+configMapGenerator:
+  - name: postgres-init
+    files: [postgres/init.sh]
+  - name: prometheus-config
+    files: [prometheus.yml=prometheus/prometheus.k8s.yml]
+  - name: grafana-datasources
+    files: [grafana/provisioning/datasources/prometheus.yml]
+  - name: grafana-dashboard-provider
+    files: [grafana/provisioning/dashboards/provider.yml]
+  - name: grafana-dashboards
+    files: [grafana/dashboards/ecommerce.json]

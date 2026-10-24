@@ -1,0 +1,17 @@
+# Everything except secrets. Deploy an overlay, not this directory:
+#   kubectl apply -k deploy/overlays/dev          local cluster, generated secrets
+#   kubectl apply -k deploy/overlays/production   secrets synced from a secret manager
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ecommerce
+
+resources:
+  - ../config
+  - namespace.yaml
+  - postgres.yaml
+  - rabbitmq.yaml
+  - user-service.yaml
+  - product-service.yaml
+  - order-service.yaml
+  - gateway.yaml
+  - monitoring.yaml

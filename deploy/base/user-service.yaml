@@ -26,6 +26,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8081"
     spec:
+      automountServiceAccountToken: false # the service never calls the Kubernetes API
       securityContext:
         runAsNonRoot: true
       containers:
@@ -37,11 +38,14 @@ spec:
           env:
             - name: PORT
               value: "8081"
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD }
-            - name: DATABASE_URL
-              value: postgres://app:$(DB_PASSWORD)@postgres:5432/users_db?sslmode=disable
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_NAME
+              value: "users_db"
+            - name: DB_USER
+              value: "user_service"
+            - name: DB_PASSWORD_FILE
+              value: "/run/secrets/db/password"
           readinessProbe:
             httpGet: { path: /health, port: 8081 }
             periodSeconds: 5
@@ -57,3 +61,12 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+          volumeMounts:
+            - name: db-credentials
+              mountPath: /run/secrets/db
+              readOnly: true
+      volumes:
+        - name: db-credentials
+          secret:
+            secretName: user-service-db
+            items: [{ key: password, path: password }]

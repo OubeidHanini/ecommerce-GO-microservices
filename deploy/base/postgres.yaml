@@ -24,17 +24,26 @@ spec:
       labels:
         app: postgres
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: postgres
           image: postgres:17-alpine
           ports:
             - containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: postgres-credentials
           env:
+            - name: POSTGRES_USER
+              value: postgres
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata # the volume root holds lost+found, which initdb refuses
+            # Passwords are read from mounted files, never passed as plain environment values.
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/superuser
+            - name: USER_SERVICE_DB_PASSWORD_FILE
+              value: /run/secrets/postgres/user-service
+            - name: PRODUCT_SERVICE_DB_PASSWORD_FILE
+              value: /run/secrets/postgres/product-service
+            - name: ORDER_SERVICE_DB_PASSWORD_FILE
+              value: /run/secrets/postgres/order-service
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\""]
@@ -49,10 +58,28 @@ spec:
             - name: init
               mountPath: /docker-entrypoint-initdb.d
               readOnly: true
+            - name: secrets
+              mountPath: /run/secrets/postgres
+              readOnly: true
       volumes:
         - name: init
           configMap:
             name: postgres-init
+        - name: secrets
+          projected:
+            sources:
+              - secret:
+                  name: postgres-superuser
+                  items: [{ key: password, path: superuser }]
+              - secret:
+                  name: user-service-db
+                  items: [{ key: password, path: user-service }]
+              - secret:
+                  name: product-service-db
+                  items: [{ key: password, path: product-service }]
+              - secret:
+                  name: order-service-db
+                  items: [{ key: password, path: order-service }]
   volumeClaimTemplates:
     - metadata:
         name: data
