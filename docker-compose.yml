@@ -29,6 +29,7 @@ services:
 
   user-service:
     <<: *go-service
+    image: ghcr.io/oubeidhanini/ecommerce-go-microservices/user-service:latest
     build:
       context: .
       args:
@@ -42,6 +43,7 @@ services:
 
   product-service:
     <<: *go-service
+    image: ghcr.io/oubeidhanini/ecommerce-go-microservices/product-service:latest
     build:
       context: .
       args:
@@ -58,6 +60,7 @@ services:
 
   order-service:
     <<: *go-service
+    image: ghcr.io/oubeidhanini/ecommerce-go-microservices/order-service:latest
     build:
       context: .
       args:
@@ -76,6 +79,7 @@ services:
 
   gateway:
     <<: *go-service
+    image: ghcr.io/oubeidhanini/ecommerce-go-microservices/gateway:latest
     build:
       context: .
       args:
@@ -91,6 +95,29 @@ services:
       - user-service
       - product-service
       - order-service
+
+  prometheus:
+    image: prom/prometheus:v3.7.2
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    ports:
+      - "3000:3000" # http://localhost:3000 (admin/admin)
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true" # local only: view dashboards without logging in
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ecommerce.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
 
 volumes:
   pgdata:
