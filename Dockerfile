@@ -12,6 +12,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /bin/app ./cmd/${SERVIC
 
 FROM alpine:3
 RUN adduser -D -u 10001 app
-USER app
+# Numeric UID: Kubernetes' runAsNonRoot can only verify a numeric user.
+USER 10001:10001
 COPY --from=build /bin/app /app
 ENTRYPOINT ["/app"]
