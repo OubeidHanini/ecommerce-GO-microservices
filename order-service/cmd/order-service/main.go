@@ -13,6 +13,7 @@ import (
 	"github.com/OubeidHanini/ecommerce-GO-microservices/order-service/internal/messaging"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/order-service/internal/order"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/order-service/internal/storage"
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/config"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/events"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/outbox"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/postgres"
@@ -33,7 +34,17 @@ func run() error {
 	ctx, cancel := context.WithCancelCause(sigCtx)
 	defer cancel(nil)
 
-	db, err := postgres.Connect(ctx, os.Getenv("DATABASE_URL"))
+	env := config.New()
+	port := env.Get("PORT", "8083")
+	dbCfg := postgres.ConfigFromEnv(env)
+	mqCfg := rabbitmq.ConfigFromEnv(env)
+	userServiceURL := env.Required("USER_SERVICE_URL")
+	productServiceURL := env.Required("PRODUCT_SERVICE_URL")
+	if err := env.Err(); err != nil {
+		return err
+	}
+
+	db, err := postgres.Connect(ctx, dbCfg)
 	if err != nil {
 		return err
 	}
@@ -44,7 +55,7 @@ func run() error {
 		return err
 	}
 
-	broker, err := rabbitmq.Connect(ctx, os.Getenv("RABBITMQ_URL"))
+	broker, err := rabbitmq.Connect(ctx, mqCfg)
 	if err != nil {
 		return err
 	}
@@ -52,8 +63,8 @@ func run() error {
 	broker.CancelOnConnectionLost(cancel)
 
 	orders := order.NewService(repo,
-		clients.NewUserClient(os.Getenv("USER_SERVICE_URL")),
-		clients.NewProductClient(os.Getenv("PRODUCT_SERVICE_URL")),
+		clients.NewUserClient(userServiceURL),
+		clients.NewProductClient(productServiceURL),
 	)
 
 	subscriptions := []struct {
@@ -70,7 +81,7 @@ func run() error {
 	}
 	go outbox.Relay(ctx, db, broker)
 
-	err = server.Run(ctx, server.New(":"+server.Getenv("PORT", "8083"), httpapi.NewHandler(orders)))
+	err = server.Run(ctx, server.New(":"+port, httpapi.NewHandler(orders)))
 	if cause := context.Cause(ctx); errors.Is(cause, rabbitmq.ErrConnectionLost) {
 		return cause
 	}

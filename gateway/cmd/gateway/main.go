@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/config"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/httpx"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/server"
 )
@@ -27,15 +28,22 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	router, err := newRouter(map[string]string{
-		"users":    os.Getenv("USER_SERVICE_URL"),
-		"products": os.Getenv("PRODUCT_SERVICE_URL"),
-		"orders":   os.Getenv("ORDER_SERVICE_URL"),
-	})
+	env := config.New()
+	port := env.Get("PORT", "8080")
+	upstreams := map[string]string{
+		"users":    env.Required("USER_SERVICE_URL"),
+		"products": env.Required("PRODUCT_SERVICE_URL"),
+		"orders":   env.Required("ORDER_SERVICE_URL"),
+	}
+	if err := env.Err(); err != nil {
+		return err
+	}
+
+	router, err := newRouter(upstreams)
 	if err != nil {
 		return err
 	}
-	return server.Run(ctx, server.New(":"+server.Getenv("PORT", "8080"), router))
+	return server.Run(ctx, server.New(":"+port, router))
 }
 
 // newRouter maps each resource (/users, /users/…) to the service that owns it.

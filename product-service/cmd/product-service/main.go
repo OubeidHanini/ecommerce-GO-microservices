@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/config"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/events"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/outbox"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/postgres"
@@ -32,7 +33,15 @@ func run() error {
 	ctx, cancel := context.WithCancelCause(sigCtx)
 	defer cancel(nil)
 
-	db, err := postgres.Connect(ctx, os.Getenv("DATABASE_URL"))
+	env := config.New()
+	port := env.Get("PORT", "8082")
+	dbCfg := postgres.ConfigFromEnv(env)
+	mqCfg := rabbitmq.ConfigFromEnv(env)
+	if err := env.Err(); err != nil {
+		return err
+	}
+
+	db, err := postgres.Connect(ctx, dbCfg)
 	if err != nil {
 		return err
 	}
@@ -43,7 +52,7 @@ func run() error {
 		return err
 	}
 
-	broker, err := rabbitmq.Connect(ctx, os.Getenv("RABBITMQ_URL"))
+	broker, err := rabbitmq.Connect(ctx, mqCfg)
 	if err != nil {
 		return err
 	}
@@ -58,7 +67,7 @@ func run() error {
 	}
 	go outbox.Relay(ctx, db, broker)
 
-	err = server.Run(ctx, server.New(":"+server.Getenv("PORT", "8082"), httpapi.NewHandler(products)))
+	err = server.Run(ctx, server.New(":"+port, httpapi.NewHandler(products)))
 	if cause := context.Cause(ctx); errors.Is(cause, rabbitmq.ErrConnectionLost) {
 		return cause
 	}

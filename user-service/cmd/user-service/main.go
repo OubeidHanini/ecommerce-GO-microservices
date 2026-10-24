@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/config"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/postgres"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/server"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/httpapi"
@@ -25,7 +26,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	db, err := postgres.Connect(ctx, os.Getenv("DATABASE_URL"))
+	env := config.New()
+	port := env.Get("PORT", "8081")
+	dbCfg := postgres.ConfigFromEnv(env)
+	if err := env.Err(); err != nil {
+		return err
+	}
+
+	db, err := postgres.Connect(ctx, dbCfg)
 	if err != nil {
 		return err
 	}
@@ -37,5 +45,5 @@ func run() error {
 	}
 
 	handler := httpapi.NewHandler(user.NewService(repo))
-	return server.Run(ctx, server.New(":"+server.Getenv("PORT", "8081"), handler))
+	return server.Run(ctx, server.New(":"+port, handler))
 }

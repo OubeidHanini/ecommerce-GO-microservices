@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/metrics"
@@ -40,11 +39,4 @@ func Run(ctx context.Context, srv *http.Server) error {
 		}
 		return nil
 	}
-}
-
-func Getenv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

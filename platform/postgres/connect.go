@@ -13,12 +13,12 @@ import (
 
 // Connect retries several times: while the stack starts, the database
 // may not accept connections yet.
-func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
+func Connect(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	const attempts = 10
 	var err error
 	for i := 1; i <= attempts; i++ {
 		var pool *pgxpool.Pool
-		pool, err = pgxpool.New(ctx, url)
+		pool, err = pgxpool.New(ctx, cfg.url())
 		if err == nil {
 			if err = pool.Ping(ctx); err == nil {
 				return pool, nil

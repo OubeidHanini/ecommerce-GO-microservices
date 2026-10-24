@@ -45,8 +45,8 @@ type Broker struct {
 	pub *amqp.Channel
 }
 
-func Connect(ctx context.Context, url string) (*Broker, error) {
-	conn, err := dialWithRetry(ctx, url)
+func Connect(ctx context.Context, cfg Config) (*Broker, error) {
+	conn, err := dialWithRetry(ctx, cfg.url())
 	if err != nil {
 		return nil, err
 	}
