@@ -46,6 +46,16 @@ func PathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+// Transport is for service-to-service calls. Go's default keeps only 2 idle connections
+// per host: under concurrent load, most requests then open a fresh TCP connection, which
+// adds seconds of latency (measured: gateway p99 4.5s vs 0.25s inside the service).
+func Transport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 512
+	t.MaxIdleConnsPerHost = 256
+	return t
+}
+
 func Health(w http.ResponseWriter, _ *http.Request) {
 	JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

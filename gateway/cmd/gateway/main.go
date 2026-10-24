@@ -50,6 +50,7 @@ func run() error {
 func newRouter(upstreams map[string]string) (http.Handler, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", httpx.Health)
+	transport := httpx.Transport()
 
 	for resource, rawURL := range upstreams {
 		target, err := url.Parse(rawURL)
@@ -58,6 +59,7 @@ func newRouter(upstreams map[string]string) (http.Handler, error) {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(target)
+		proxy.Transport = transport
 		proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 			log.Printf("%s upstream: %v", resource, err)
 			httpx.JSON(w, http.StatusBadGateway, map[string]string{"error": resource + " service unavailable"})

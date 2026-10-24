@@ -35,14 +35,22 @@ type Publisher interface {
 	Publish(ctx context.Context, routingKey string, event any) error
 }
 
+const batchSize = 100
+
 // Relay publishes pending events until ctx is cancelled.
 // Delivery is at-least-once: consumers must be idempotent.
 func Relay(ctx context.Context, db *pgxpool.Pool, pub Publisher) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if err := flush(ctx, db, pub); err != nil && ctx.Err() == nil {
+		n, err := flush(ctx, db, pub)
+		if err != nil && ctx.Err() == nil {
 			log.Printf("outbox relay: %v", err)
+		}
+		// A full batch means more events are waiting: drain them right away instead of
+		// waiting for the next tick, which capped throughput at 200 events/s under load.
+		if n == batchSize && err == nil {
+			continue
 		}
 		select {
 		case <-ctx.Done():
@@ -58,12 +66,14 @@ type pending struct {
 	payload    json.RawMessage
 }
 
-func flush(ctx context.Context, db *pgxpool.Pool, pub Publisher) error {
+// flush publishes one batch and returns how many events it published.
+func flush(ctx context.Context, db *pgxpool.Pool, pub Publisher) (int, error) {
+	var published []int64
 	var publishErr error
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		// SKIP LOCKED: several service instances can relay without publishing the same batch twice.
 		rows, err := tx.Query(ctx,
-			`SELECT id, routing_key, payload FROM outbox ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED`)
+			`SELECT id, routing_key, payload FROM outbox ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED`, batchSize)
 		if err != nil {
 			return err
 		}
@@ -80,14 +90,13 @@ func flush(ctx context.Context, db *pgxpool.Pool, pub Publisher) error {
 			if publishErr = pub.Publish(ctx, p.routingKey, p.payload); publishErr != nil {
 				break // still commit the deletion of the ones already published
 			}
-			if _, err := tx.Exec(ctx, `DELETE FROM outbox WHERE id = $1`, p.id); err != nil {
-				return err
-			}
+			published = append(published, p.id)
 		}
-		return nil
+		_, err = tx.Exec(ctx, `DELETE FROM outbox WHERE id = ANY($1)`, published)
+		return err
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return publishErr
+	return len(published), publishErr
 }

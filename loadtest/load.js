@@ -20,6 +20,7 @@ export const options = {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<500'],
   },
+  teardownTimeout: '3m', // the consistency check waits for every order to be resolved
   summaryTrendStats: ['avg', 'p(50)', 'p(95)', 'p(99)', 'max'],
 };
 

@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/httpx"
 )
 
 // Without a timeout, one slow service would block every order in flight.
-var httpClient = &http.Client{Timeout: 3 * time.Second}
+var httpClient = &http.Client{Timeout: 3 * time.Second, Transport: httpx.Transport()}
 
 type UserClient struct {
 	baseURL string
