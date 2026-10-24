@@ -339,7 +339,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service) (rate(http_requests_total{code=~\"5..\",route!=\"GET /health\"}[5m])) / sum by (service) (rate(http_requests_total{route!=\"GET /health\"}[5m]))",
+          "expr": "(sum by (service) (rate(http_requests_total{code=~\"5..\",route!=\"GET /health\"}[5m])) or sum by (service) (rate(http_requests_total{route!=\"GET /health\"}[5m])) * 0) / sum by (service) (rate(http_requests_total{route!=\"GET /health\"}[5m]))",
           "legendFormat": "{{service}}",
           "refId": "A"
         }
@@ -353,7 +353,8 @@
             "fillOpacity": 0,
             "showPoints": "never",
             "axisSoftMin": 0,
-            "gradientMode": "none"
+            "gradientMode": "none",
+            "axisSoftMax": 0.05
           }
         },
         "overrides": [
@@ -574,6 +575,7 @@
         "defaults": {
           "unit": "ops",
           "min": 0,
+          "noValue": "No failed deliveries",
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 0,
