@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/httpx"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/user"
 )
 
@@ -14,7 +15,7 @@ func NewHandler(users *user.Service) http.Handler {
 	h := &handler{users: users}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", health)
+	mux.HandleFunc("GET /health", httpx.Health)
 	mux.HandleFunc("POST /users", h.create)
 	mux.HandleFunc("GET /users", h.list)
 	mux.HandleFunc("GET /users/{id}", h.get)
@@ -26,7 +27,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
-	if !decodeJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 
@@ -35,7 +36,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, u)
+	httpx.JSON(w, http.StatusCreated, u)
 }
 
 func (h *handler) list(w http.ResponseWriter, r *http.Request) {
@@ -44,11 +45,11 @@ func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, users)
+	httpx.JSON(w, http.StatusOK, users)
 }
 
 func (h *handler) get(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
+	id, ok := httpx.PathID(w, r)
 	if !ok {
 		return
 	}
@@ -58,5 +59,5 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, u)
+	httpx.JSON(w, http.StatusOK, u)
 }

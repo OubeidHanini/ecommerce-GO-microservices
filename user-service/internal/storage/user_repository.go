@@ -1,13 +1,13 @@
-package postgres
+package storage
 
 import (
 	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/postgres"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/user"
 )
 
@@ -38,8 +38,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		u.Name, u.Email,
 	).Scan(&u.ID, &u.CreatedAt)
 
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
+	if postgres.IsUniqueViolation(err) {
 		return user.ErrEmailTaken
 	}
 	return err

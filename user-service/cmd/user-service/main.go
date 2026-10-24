@@ -3,14 +3,14 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/postgres"
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/server"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/httpapi"
-	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/postgres"
+	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/storage"
 	"github.com/OubeidHanini/ecommerce-GO-microservices/user-service/internal/user"
 )
 
@@ -31,39 +31,11 @@ func run() error {
 	}
 	defer db.Close()
 
-	repo := postgres.NewUserRepository(db)
+	repo := storage.NewUserRepository(db)
 	if err := repo.Migrate(ctx); err != nil {
 		return err
 	}
 
-	server := &http.Server{
-		Addr:              ":" + getenv("PORT", "8081"),
-		Handler:           httpapi.NewHandler(user.NewService(repo)),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-	return serve(ctx, server)
-}
-
-func serve(ctx context.Context, server *http.Server) error {
-	errCh := make(chan error, 1)
-	go func() {
-		log.Printf("user-service listening on %s", server.Addr)
-		errCh <- server.ListenAndServe()
-	}()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return server.Shutdown(shutdownCtx)
-	}
-}
-
-func getenv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+	handler := httpapi.NewHandler(user.NewService(repo))
+	return server.Run(ctx, server.New(":"+server.Getenv("PORT", "8081"), handler))
 }
