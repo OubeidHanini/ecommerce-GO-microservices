@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+spec:
+  selector:
+    app: product-service
+  ports:
+    - port: 80
+      targetPort: 8082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: product-service
+          image: ghcr.io/oubeidhanini/ecommerce-go-microservices/product-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          env:
+            - name: PORT
+              value: "8082"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-credentials, key: POSTGRES_PASSWORD }
+            - name: DATABASE_URL
+              value: postgres://app:$(DB_PASSWORD)@postgres:5432/products_db?sslmode=disable
+            - name: MQ_USER
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-credentials, key: RABBITMQ_DEFAULT_USER }
+            - name: MQ_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: rabbitmq-credentials, key: RABBITMQ_DEFAULT_PASS }
+            - name: RABBITMQ_URL
+              value: amqp://$(MQ_USER):$(MQ_PASSWORD)@rabbitmq:5672/
+          readinessProbe:
+            httpGet: { path: /health, port: 8082 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 8082 }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

@@ -1,0 +1,48 @@
+# kubectl apply -k deploy
+# Lives at deploy/ (not deploy/k8s/) so it can reuse the SQL and Grafana files shared with Docker Compose.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ecommerce
+
+resources:
+  - k8s/namespace.yaml
+  - k8s/postgres.yaml
+  - k8s/rabbitmq.yaml
+  - k8s/user-service.yaml
+  - k8s/product-service.yaml
+  - k8s/order-service.yaml
+  - k8s/gateway.yaml
+  - k8s/monitoring.yaml
+
+# Generated names carry a content hash: changing a file rolls out the pods that use it.
+configMapGenerator:
+  - name: postgres-init
+    files: [postgres/init.sql]
+  - name: prometheus-config
+    files: [prometheus.yml=prometheus/prometheus.k8s.yml]
+  - name: grafana-datasources
+    files: [grafana/provisioning/datasources/prometheus.yml]
+  - name: grafana-dashboard-provider
+    files: [grafana/provisioning/dashboards/provider.yml]
+  - name: grafana-dashboards
+    files: [grafana/dashboards/ecommerce.json]
+
+# Development credentials only. In production, use Sealed Secrets or External Secrets instead.
+secretGenerator:
+  - name: postgres-credentials
+    literals: [POSTGRES_USER=app, POSTGRES_PASSWORD=app-dev-password]
+  - name: rabbitmq-credentials
+    literals: [RABBITMQ_DEFAULT_USER=app, RABBITMQ_DEFAULT_PASS=app-dev-password]
+  - name: grafana-admin
+    literals: [GF_SECURITY_ADMIN_PASSWORD=admin]
+
+# The CD pipeline pins each image to the commit SHA with `kustomize edit set image`.
+images:
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/user-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/product-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/order-service
+    newTag: latest
+  - name: ghcr.io/oubeidhanini/ecommerce-go-microservices/gateway
+    newTag: latest
