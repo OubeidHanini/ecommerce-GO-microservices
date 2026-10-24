@@ -1,3 +1,7 @@
+# Go services share the root Dockerfile; only the SERVICE build arg changes.
+x-go-service: &go-service
+  restart: unless-stopped # a service that loses RabbitMQ exits on purpose and must come back
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -24,7 +28,11 @@ services:
       retries: 10
 
   user-service:
-    build: ./user-service
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: user-service
     environment:
       PORT: "8081"
       DATABASE_URL: postgres://app:app@postgres:5432/users_db?sslmode=disable
@@ -33,7 +41,11 @@ services:
         condition: service_healthy
 
   product-service:
-    build: ./product-service
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: product-service
     environment:
       PORT: "8082"
       DATABASE_URL: postgres://app:app@postgres:5432/products_db?sslmode=disable
@@ -45,7 +57,11 @@ services:
         condition: service_healthy
 
   order-service:
-    build: ./order-service
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: order-service
     environment:
       PORT: "8083"
       DATABASE_URL: postgres://app:app@postgres:5432/orders_db?sslmode=disable
@@ -59,9 +75,13 @@ services:
         condition: service_healthy
 
   gateway:
-    build: ./gateway
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: gateway
     ports:
-      - "8080:8080"
+      - "${GATEWAY_PORT:-8080}:8080" # GATEWAY_PORT=8090 docker compose up -d if 8080 is taken
     environment:
       PORT: "8080"
       USER_SERVICE_URL: http://user-service:8081

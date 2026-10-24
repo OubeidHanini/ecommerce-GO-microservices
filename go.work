@@ -1,0 +1,9 @@
+go 1.27.0
+
+use (
+	./gateway
+	./order-service
+	./platform
+	./product-service
+	./user-service
+)
