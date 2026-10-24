@@ -1,26 +1,62 @@
+# Run scripts/init-secrets.sh once first: it generates .env, which is never committed.
+#
+# Passwords reach containers as Docker secrets (files under /run/secrets/), not as
+# environment variables, so they don't appear in `docker inspect`.
+
 # Go services share the root Dockerfile; only the SERVICE build arg changes.
 x-go-service: &go-service
   restart: unless-stopped # a service that loses RabbitMQ exits on purpose and must come back
+
+x-rabbitmq-client: &rabbitmq-client
+  MQ_HOST: rabbitmq
+  MQ_USER: ${RABBITMQ_USER:?run scripts/init-secrets.sh}
+  MQ_PASSWORD_FILE: /run/secrets/rabbitmq_password
+
+secrets:
+  postgres_password:
+    environment: POSTGRES_PASSWORD
+  user_service_db_password:
+    environment: USER_SERVICE_DB_PASSWORD
+  product_service_db_password:
+    environment: PRODUCT_SERVICE_DB_PASSWORD
+  order_service_db_password:
+    environment: ORDER_SERVICE_DB_PASSWORD
+  rabbitmq_password:
+    environment: RABBITMQ_PASSWORD
+  grafana_admin_password:
+    environment: GRAFANA_ADMIN_PASSWORD
 
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      USER_SERVICE_DB_PASSWORD_FILE: /run/secrets/user_service_db_password
+      PRODUCT_SERVICE_DB_PASSWORD_FILE: /run/secrets/product_service_db_password
+      ORDER_SERVICE_DB_PASSWORD_FILE: /run/secrets/order_service_db_password
+    secrets:
+      - postgres_password
+      - user_service_db_password
+      - product_service_db_password
+      - order_service_db_password
     volumes:
-      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./deploy/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
+    environment:
+      # The RabbitMQ image has no *_FILE variant: the password stays an environment variable here.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?run scripts/init-secrets.sh}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?run scripts/init-secrets.sh}
     ports:
-      - "15672:15672" # admin UI: http://localhost:15672 (guest/guest)
+      - "15672:15672" # admin UI: http://localhost:15672 (credentials in .env)
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -36,7 +72,12 @@ services:
         SERVICE: user-service
     environment:
       PORT: "8081"
-      DATABASE_URL: postgres://app:app@postgres:5432/users_db?sslmode=disable
+      DB_HOST: postgres
+      DB_NAME: users_db
+      DB_USER: user_service
+      DB_PASSWORD_FILE: /run/secrets/user_service_db_password
+    secrets:
+      - user_service_db_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,9 +90,15 @@ services:
       args:
         SERVICE: product-service
     environment:
+      <<: *rabbitmq-client
       PORT: "8082"
-      DATABASE_URL: postgres://app:app@postgres:5432/products_db?sslmode=disable
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DB_HOST: postgres
+      DB_NAME: products_db
+      DB_USER: product_service
+      DB_PASSWORD_FILE: /run/secrets/product_service_db_password
+    secrets:
+      - product_service_db_password
+      - rabbitmq_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,11 +113,17 @@ services:
       args:
         SERVICE: order-service
     environment:
+      <<: *rabbitmq-client
       PORT: "8083"
-      DATABASE_URL: postgres://app:app@postgres:5432/orders_db?sslmode=disable
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      DB_HOST: postgres
+      DB_NAME: orders_db
+      DB_USER: order_service
+      DB_PASSWORD_FILE: /run/secrets/order_service_db_password
       USER_SERVICE_URL: http://user-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8082
+    secrets:
+      - order_service_db_password
+      - rabbitmq_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,7 +138,7 @@ services:
       args:
         SERVICE: gateway
     ports:
-      - "${GATEWAY_PORT:-8080}:8080" # GATEWAY_PORT=8090 docker compose up -d if 8080 is taken
+      - "${GATEWAY_PORT:-8080}:8080" # set GATEWAY_PORT in .env if 8080 is taken
     environment:
       PORT: "8080"
       USER_SERVICE_URL: http://user-service:8081
@@ -107,12 +160,14 @@ services:
   grafana:
     image: grafana/grafana:12.2.1
     ports:
-      - "3000:3000" # http://localhost:3000 (admin/admin)
+      - "3000:3000" # http://localhost:3000 (admin / GRAFANA_ADMIN_PASSWORD from .env)
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       GF_AUTH_ANONYMOUS_ENABLED: "true" # local only: view dashboards without logging in
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ecommerce.json
+    secrets:
+      - grafana_admin_password
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro

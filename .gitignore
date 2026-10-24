@@ -1,6 +1,9 @@
 *.exe
 *.test
 *.out
-.env
 .idea/
 .vscode/
+
+# Secrets: generated locally by scripts/init-secrets.sh, never committed.
+.env
+deploy/overlays/dev/secrets/
