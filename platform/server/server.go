@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/OubeidHanini/ecommerce-GO-microservices/platform/metrics"
 )
 
+// New instruments handler and serves GET /metrics, so no service can forget its metrics.
 func New(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
-		Handler:           handler,
+		Handler:           metrics.Wrap(handler),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

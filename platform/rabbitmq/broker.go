@@ -11,12 +11,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const exchange = "ecommerce.events"
 
 var ErrConnectionLost = errors.New("rabbitmq connection lost")
+
+// consumed makes a consumer stuck in a retry loop visible (outcome="retried").
+var consumed = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "events_consumed_total",
+	Help: "Consumed events by routing key and outcome (acked, dropped, retried).",
+}, []string{"routing_key", "outcome"})
 
 // Handler processes a message body. An error wrapped with Permanent drops
 // the message; any other error requeues it for another attempt.
@@ -151,11 +159,14 @@ func dispatch(ctx context.Context, msg amqp.Delivery, handle Handler) {
 	var permanent permanentError
 	switch {
 	case err == nil:
+		consumed.WithLabelValues(msg.RoutingKey, "acked").Inc()
 		_ = msg.Ack(false)
 	case errors.As(err, &permanent):
+		consumed.WithLabelValues(msg.RoutingKey, "dropped").Inc()
 		log.Printf("dropping message %q: %v", msg.RoutingKey, err)
 		_ = msg.Nack(false, false)
 	default:
+		consumed.WithLabelValues(msg.RoutingKey, "retried").Inc()
 		log.Printf("handling %q failed, will retry: %v", msg.RoutingKey, err)
 		time.Sleep(time.Second) // avoids spinning at full speed while a dependency is down
 		_ = msg.Nack(false, true)
