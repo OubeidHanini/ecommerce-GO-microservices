@@ -1,0 +1,37 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const uniqueViolation = "23505"
+
+// Connect retries several times: while the stack starts, the database
+// may not accept connections yet.
+func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	const attempts = 10
+	var err error
+	for i := 1; i <= attempts; i++ {
+		var pool *pgxpool.Pool
+		pool, err = pgxpool.New(ctx, url)
+		if err == nil {
+			if err = pool.Ping(ctx); err == nil {
+				return pool, nil
+			}
+			pool.Close()
+		}
+		log.Printf("postgres not ready (attempt %d/%d): %v", i, attempts, err)
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	return nil, fmt.Errorf("connect to postgres: %w", err)
+}
