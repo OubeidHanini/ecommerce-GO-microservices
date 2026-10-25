@@ -134,7 +134,7 @@ Results on a laptop (8 CPUs, Docker Desktop with 3.8 GB), whole stack on one mac
 
 | | First run | After tuning |
 |---|---|---|
-| 320,000 requests | — | **27 s, ~3,650 req/s**, 0 errors |
+| Requests | — | **100,000 per run in 27 s (~3,650 req/s)**; 320,000 over the whole session, 0 errors |
 | p95 / p99 latency (10k run) | 546 ms / 5.99 s | 89 ms / 162 ms |
 | Consistency check | passed | passed (9,905 orders, stock exact) |
 
